@@ -3,19 +3,22 @@ import csv
 from datetime import datetime
 from glob import glob
 
-# --- Configuration (Folder Path Confirmed) ---
+# --- Configuration ---
 DATA_FOLDER = r'C:\Users\GROWTH\Desktop\visitor_counting'
 CSV_FILE = os.path.join(DATA_FOLDER, 'data.csv')
 HEADERS = ['Date', 'Visitors']
+# --- NEW: Define the fixed subtraction value ---
+SUBTRACTION_VALUE = 12
 
 # --- Main Logic ---
 
 def consolidate_data():
     """
-    Reads daily .txt log files (visitors_YYYYMMDD.txt), COUNTS the visitor entries,
-    updates the CSV master file, and removes processed .txt files.
+    Reads daily .txt log files, COUNTS the visitor entries (lines), 
+    subtracts a fixed value (12), updates the CSV master file, and 
+    removes processed .txt files.
     """
-
+    
     # 1. Load existing data from the CSV to avoid duplicates
     existing_data = {}
     if os.path.exists(CSV_FILE):
@@ -23,7 +26,6 @@ def consolidate_data():
             with open(CSV_FILE, mode='r', newline='') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    # Ensure data and count are valid before adding
                     if 'Date' in row and 'Visitors' in row and row['Visitors'].isdigit():
                         existing_data[row['Date']] = int(row['Visitors'])
         except Exception as e:
@@ -34,16 +36,14 @@ def consolidate_data():
 
     # 2. Iterate through all .txt files matching the pattern (visitors_YYYYMMDD.txt)
     search_pattern = os.path.join(DATA_FOLDER, 'visitors_*.txt')
-
+    
     for filepath in glob(search_pattern):
         try:
-            filename = os.path.basename(filepath)
-
+            filename = os.path.basename(filepath) 
+            
             # --- Date Parsing ---
-            # Extracts date part: 20251128
             base_name = filename.replace('visitors_', '').replace('.txt', '')
-
-            # Reformat from YYYYMMDD to YYYY-MM-DD for CSV
+            
             if len(base_name) == 8:
                 year = base_name[:4]
                 month = base_name[4:6]
@@ -52,25 +52,26 @@ def consolidate_data():
             else:
                 raise ValueError("Filename format incorrect (Expected YYYYMMDD in base name).")
 
-            # Validate date format
-            datetime.strptime(date_str, '%Y-%m-%d')
-
-            # --- Count Extraction (The Fix) ---
+            datetime.strptime(date_str, '%Y-%m-%d') 
+            
+            # --- Count Extraction and Calculation ---
             if date_str not in existing_data:
-                visitor_count = 0
-
+                raw_count = 0
+                
                 # Open the log file and count the lines
                 with open(filepath, 'r') as f:
                     for line in f:
-                        # Assuming every line is a visitor log, or count non-empty lines
-                        if line.strip():
-                             visitor_count += 1
-
-                # Use the line count as the daily total
-                existing_data[date_str] = visitor_count
+                        if line.strip(): 
+                             raw_count += 1
+                
+                # Apply the requested calculation: Total Visitors = Raw Count - 12
+                # Ensure the final count is not negative
+                final_count = max(0, raw_count - SUBTRACTION_VALUE)
+                
+                existing_data[date_str] = final_count
                 new_entries += 1
                 files_to_delete.append(filepath)
-                print(f"Added new entry: Date={date_str}, Count={visitor_count}")
+                print(f"Processed file: {date_str}. Raw Count: {raw_count}, Final Count: {final_count}")
 
         except ValueError as ve:
             print(f"Skipping file: {filename}. Error: {ve}")
@@ -80,17 +81,15 @@ def consolidate_data():
 
     # 3. Write all (old and new) data back to the CSV, sorted by date
     if new_entries > 0:
-        # Sort by date string (which naturally sorts chronologically)
         sorted_data = sorted(existing_data.items())
-
+        
         with open(CSV_FILE, mode='w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(HEADERS)
-            # writerows expects an iterable of rows, which is what sorted_data provides (Date, Count)
             writer.writerows(sorted_data)
-
+            
         print(f"Consolidation complete. {new_entries} new entries added to {CSV_FILE}.")
-
+        
         # 4. Remove processed TXT files
         for filepath in files_to_delete:
             os.remove(filepath)
