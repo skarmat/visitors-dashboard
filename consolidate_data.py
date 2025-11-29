@@ -38,7 +38,7 @@ def consolidate_data():
     search_pattern = os.path.join(DATA_FOLDER, 'visitors_*.txt')
     
     for filepath in glob(search_pattern):
-        try:
+        try {
             filename = os.path.basename(filepath) 
             
             # --- Date Parsing ---
