@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HCT Visitor Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f7fafc;
+      }
+      .card {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+    </style>
+  </head>
+  <body class="p-4 md:p-10">
+    <div class="max-w-6xl mx-auto">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">
+        HCT Visitor Traffic Dashboard
+      </h1>
+      <p id="last-update" class="text-sm text-gray-600 mb-8">Data Loading...</p>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Daily Plot Card -->
+        <div class="card bg-white p-6 rounded-xl border border-gray-200">
+          <h2
+            class="text-xl font-semibold mb-4 text-gray-800 flex items-center"
+          >
+            Daily Visitor Count
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 ml-2 text-indigo-500"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </h2>
+          <div class="h-72">
+            <canvas id="dailyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Monthly Plot Card -->
+        <div class="card bg-white p-6 rounded-xl border border-gray-200">
+          <h2
+            class="text-xl font-semibold mb-4 text-gray-800 flex items-center"
+          >
+            Monthly Aggregated Visitors
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 ml-2 text-green-500"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"
+              />
+            </svg>
+          </h2>
+          <div class="h-72">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // --- Configuration ---
+      // !!! IMPORTANT: REPLACE THIS URL !!!
+      // Format: https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/visitor-dashboard/main/data.csv
+      const RAW_DATA_URL =
+        "https://raw.githubusercontent.com/skarmat/visitors-dashboard/refs/heads/main/data.csv";
+
+      // --- Utility Functions ---
+
+      // Function to parse CSV text into an array of objects
+      function parseCSV(csvText) {
+        const lines = csvText.trim().split("\n");
+        if (lines.length < 2) return [];
+
+        const headers = lines[0].split(",").map((h) => h.trim());
+        const data = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(",").map((v) => v.trim());
+          if (values.length === headers.length) {
+            const row = {};
+            headers.forEach((header, index) => {
+              row[header] =
+                header === "Visitors"
+                  ? parseInt(values[index], 10)
+                  : values[index];
+            });
+            data.push(row);
+          }
+        }
+        return data;
+      }
+
+      // Function to aggregate daily data into monthly totals
+      function aggregateMonthly(dailyData) {
+        const monthlyTotals = {};
+        dailyData.forEach((item) => {
+          const date = new Date(item.Date);
+          // Create a key like "2025-11"
+          const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1)
+            .toString()
+            .padStart(2, "0")}`;
+
+          if (!monthlyTotals[monthKey]) {
+            monthlyTotals[monthKey] = 0;
+          }
+          monthlyTotals[monthKey] += item.Visitors;
+        });
+
+        // Convert map to array for Chart.js
+        return Object.keys(monthlyTotals)
+          .map((key) => ({
+            month: key,
+            total: monthlyTotals[key],
+          }))
+          .sort((a, b) => a.month.localeCompare(b.month));
+      }
+
+      // Function to render the Daily Line Chart
+      function renderDailyChart(data) {
+        const ctx = document.getElementById("dailyChart").getContext("2d");
+
+        // Limit to the last 30 days for better visualization
+        const last30Days = data.slice(-30);
+
+        new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: last30Days.map((item) => item.Date),
+            datasets: [
+              {
+                label: "Daily Visitors",
+                data: last30Days.map((item) => item.Visitors),
+                borderColor: "#4f46e5", // Indigo-600
+                backgroundColor: "rgba(79, 70, 229, 0.1)",
+                tension: 0.3,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: "Visitors" },
+              },
+              x: { title: { display: true, text: "Date (Last 30 Days)" } },
+            },
+            plugins: {
+              legend: { display: false },
+              title: { display: false },
+            },
+          },
+        });
+      }
+
+      // Function to render the Monthly Bar Chart
+      function renderMonthlyChart(data) {
+        const ctx = document.getElementById("monthlyChart").getContext("2d");
+
+        // Format month key (e.g., "2025-11") to display name (e.g., "Nov 2025")
+        const labels = data.map((item) => {
+          const parts = item.month.split("-");
+          const date = new Date(parts[0], parts[1] - 1);
+          return date.toLocaleString("default", {
+            month: "short",
+            year: "numeric",
+          });
+        });
+
+        new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "Total Monthly Visitors",
+                data: data.map((item) => item.total),
+                backgroundColor: "#10b981", // Emerald-500
+                borderRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: "Total Visitors" },
+              },
+              x: { title: { display: true, text: "Month" } },
+            },
+            plugins: {
+              legend: { display: false },
+              title: { display: false },
+            },
+          },
+        });
+      }
+
+      // --- Main Execution Logic ---
+
+      async function fetchAndRenderData() {
+        const updateElement = document.getElementById("last-update");
+        updateElement.textContent = "Fetching data from GitHub...";
+
+        try {
+          // 1. Fetch the raw CSV data from the GitHub URL
+          const response = await fetch(RAW_DATA_URL);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const csvText = await response.text();
+
+          // 2. Parse the CSV
+          const dailyData = parseCSV(csvText);
+
+          if (dailyData.length === 0) {
+            updateElement.textContent =
+              "Error: Data file is empty or incorrectly formatted.";
+            return;
+          }
+
+          // 3. Aggregate Monthly Data
+          const monthlyData = aggregateMonthly(dailyData);
+
+          // 4. Render Charts
+          renderDailyChart(dailyData);
+          renderMonthlyChart(monthlyData);
+
+          // 5. Update Status
+          const latestDate = dailyData[dailyData.length - 1].Date;
+          updateElement.textContent = `Last data point: ${latestDate}. Charts generated successfully.`;
+        } catch (error) {
+          console.error("Failed to load or process data:", error);
+          updateElement.textContent = `Failed to load data. Please check the RAW_DATA_URL and data.csv format. Error: ${error.message}`;
+        }
+      }
+
+      // Wait for the window to load before running the main function
+      window.onload = fetchAndRenderData;
+    </script>
+  </body>
+</html>
