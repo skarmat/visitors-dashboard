@@ -93,12 +93,7 @@ def consolidate_data():
             
         print(f"Consolidation complete. {new_entries} new entries added to {CSV_FILE}.")
         
-        # 4. Remove processed TXT files
-        for filepath in files_to_delete:
-            os.remove(filepath)
-            print(f"Deleted processed file: {os.path.basename(filepath)}")
-    else:
-        print("No new data to consolidate.")
+
 
 
 if __name__ == "__main__":
