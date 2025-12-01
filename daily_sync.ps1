@@ -1,31 +1,21 @@
 # daily_sync.ps1
-# This script is scheduled to run daily on the Data Logger PC.
+# This script uses absolute paths to ensure reliable execution via Task Scheduler.
 
-# --- Configuration ---
+# --- Configuration & Paths ---
 $repoDir = "C:\Users\GROWTH\Desktop\visitor_counting"
 $pythonScript = "consolidate_data.py"
 
-# IMPORTANT: REPLACE THIS PLACEHOLDER with the path you found in Step 1 (e.g., C:\Program Files\Git\cmd\git.exe)
+# !!! REPLACE THESE PATHS WITH THE ABSOLUTE PATHS FOUND IN STEP 1 !!!
+$pythonPath = "C:\Users\GROWTH\AppData\Local\Programs\Python\Python39\python.exe"
 $gitPath = "C:\Program Files\Git\cmd\git.exe" 
 
 # --- Execution ---
 
 Write-Host "--- Starting Data Consolidation and Git Sync ---"
+
 try {
-    # Change directory
+    # Change directory to the repository folder
     Set-Location -Path $repoDir
-
-    # 1. Run Python Consolidation
-    Write-Host "Running Python script to update data.csv..."
-    # The Python script handles TXT conversion and data.csv update
-    & python $pythonScript
-    Write-Host "Python execution complete."
-
-    # 2. Check Git Executable Path
-    if (-not (Test-Path $gitPath)) {
-        Write-Host "FATAL ERROR: Git executable not found at specified path: $gitPath"
-        exit 1
-    }
     
     # Define a custom function to run Git using the full path
     function Run-Git {
@@ -33,18 +23,26 @@ try {
         & $gitPath @ArgumentList
     }
 
-    # 3. Git Operations
-    
+    # 1. Run Python Consolidation (Using Absolute Path)
+    Write-Host "Running Python script to update data.csv..."
+    # We use the full path to python.exe to execute the consolidation script
+    & $pythonPath $pythonScript
+    Write-Host "Python execution complete. data.csv should be updated."
+
+    # 2. Git Operations (Using Run-Git function with Absolute Path)
+
     # Stage the updated data.csv file
     Run-Git "add data.csv"
-    
+    Write-Host "Staged data.csv."
+
     # Check if there are any pending changes to commit
-    $status = Run-Git "status --porcelain" | Out-String # Capture output for check
+    # We use the Run-Git function to check status
+    $status = Run-Git "status --porcelain" | Out-String 
 
     if ($status -ne "") {
         # Changes detected, proceed with commit and push
         $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm"
-        Write-Host "Changes detected. Committing data update..."
+        Write-Host "Committing changes..."
         
         # Commit the changes
         Run-Git "commit -m 'Automated Data Update: $timestamp'"
