@@ -7,15 +7,16 @@ from glob import glob
 DATA_FOLDER = r'C:\Users\GROWTH\Desktop\visitor_counting'
 CSV_FILE = os.path.join(DATA_FOLDER, 'data.csv')
 HEADERS = ['Date', 'Visitors']
-# --- NEW: Define the fixed subtraction value ---
-SUBTRACTION_VALUE = 6
+# --- Fixed Subtraction Value ---
+SUBTRACTION_VALUE = 12
 
 # --- Main Logic ---
 
 def consolidate_data():
     """
     Reads daily .txt log files, COUNTS the visitor entries (lines), 
-    subtracts a fixed value (6),and  updates the CSV master file.
+    subtracts a fixed value (12), updates the CSV master file, and 
+    removes processed .txt files.
     """
     
     # 1. Load existing data from the CSV to avoid duplicates
@@ -37,7 +38,8 @@ def consolidate_data():
     search_pattern = os.path.join(DATA_FOLDER, 'visitors_*.txt')
     
     for filepath in glob(search_pattern):
-        try {
+        # *** FIX APPLIED HERE: Correct Python try/except syntax ***
+        try:
             filename = os.path.basename(filepath) 
             
             # --- Date Parsing ---
@@ -49,6 +51,7 @@ def consolidate_data():
                 day = base_name[6:8]
                 date_str = f"{year}-{month}-{day}"
             else:
+                # This error handling now correctly leads to the 'except' block below
                 raise ValueError("Filename format incorrect (Expected YYYYMMDD in base name).")
 
             datetime.strptime(date_str, '%Y-%m-%d') 
@@ -63,7 +66,7 @@ def consolidate_data():
                         if line.strip(): 
                              raw_count += 1
                 
-                # Apply the requested calculation: Total Visitors = Raw Count - 6
+                # Apply the requested calculation: Total Visitors = Raw Count - 12
                 # Ensure the final count is not negative
                 final_count = max(0, raw_count - SUBTRACTION_VALUE)
                 
@@ -72,6 +75,7 @@ def consolidate_data():
                 files_to_delete.append(filepath)
                 print(f"Processed file: {date_str}. Raw Count: {raw_count}, Final Count: {final_count}")
 
+        # This is the necessary 'except' block to catch errors during file processing
         except ValueError as ve:
             print(f"Skipping file: {filename}. Error: {ve}")
         except Exception as e:
@@ -89,6 +93,12 @@ def consolidate_data():
             
         print(f"Consolidation complete. {new_entries} new entries added to {CSV_FILE}.")
         
+        # 4. Remove processed TXT files
+        for filepath in files_to_delete:
+            os.remove(filepath)
+            print(f"Deleted processed file: {os.path.basename(filepath)}")
+    else:
+        print("No new data to consolidate.")
 
 
 if __name__ == "__main__":
