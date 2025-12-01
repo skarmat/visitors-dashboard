@@ -1,59 +1,67 @@
 # daily_sync.ps1
 # This script is scheduled to run daily on the Data Logger PC.
-# It chains the Python consolidation, Git commit, and Git push to GitHub.
 
 # --- Configuration ---
-# 1. Define the repository directory. This MUST match the folder path.
 $repoDir = "C:\Users\GROWTH\Desktop\visitor_counting"
 $pythonScript = "consolidate_data.py"
 
-# 2. Change directory to the repository folder
-Set-Location -Path $repoDir
+# IMPORTANT: REPLACE THIS PLACEHOLDER with the path you found in Step 1 (e.g., C:\Program Files\Git\cmd\git.exe)
+$gitPath = "C:\Program Files\Git\cmd\git.exe" 
+
+# --- Execution ---
 
 Write-Host "--- Starting Data Consolidation and Git Sync ---"
-Write-Host "Current Directory: $repoDir"
-
-# --- Step 1: Run Python Consolidation ---
-# This executes 'consolidate_data.py', which reads new TXT files,
-# updates data.csv, and deletes the processed TXT files.
-Write-Host "Running Python script to update data.csv..."
 try {
-    # The '&' operator executes the external program/script
+    # Change directory
+    Set-Location -Path $repoDir
+
+    # 1. Run Python Consolidation
+    Write-Host "Running Python script to update data.csv..."
+    # The Python script handles TXT conversion and data.csv update
     & python $pythonScript
-} catch {
-    Write-Host "ERROR: Python script failed. Check if Python is installed and in PATH."
-    exit 1
-}
+    Write-Host "Python execution complete."
 
-
-# --- Step 2: Git Operations ---
-
-# Stage the updated data.csv file for commit
-git add data.csv
-Write-Host "Staged data.csv."
-
-# Check if there are any pending changes to commit (status --porcelain returns non-empty if changes exist)
-$status = git status --parcelain
-
-if ($status) {
-    # Changes detected, proceed with commit and push
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm"
-    Write-Host "Changes detected. Committing data update..."
-
-    # Commit the changes
-    git commit -m "Automated Data Update: $timestamp"
-
-    # Push to GitHub (Relies on the PAT embedded in the remote URL you set up earlier)
-    Write-Host "Pushing changes to GitHub 'main' branch..."
-    try {
-        git push origin main
-        Write-Host "SUCCESS: Data successfully pushed to GitHub at $timestamp."
-    } catch {
-        Write-Host "FATAL ERROR: Git push failed. Check your network connection and the PAT in the remote URL."
+    # 2. Check Git Executable Path
+    if (-not (Test-Path $gitPath)) {
+        Write-Host "FATAL ERROR: Git executable not found at specified path: $gitPath"
         exit 1
     }
-} else {
-    Write-Host "No new data detected in data.csv. Skipping commit and push."
+    
+    # Define a custom function to run Git using the full path
+    function Run-Git {
+        param([string]$ArgumentList)
+        & $gitPath @ArgumentList
+    }
+
+    # 3. Git Operations
+    
+    # Stage the updated data.csv file
+    Run-Git "add data.csv"
+    
+    # Check if there are any pending changes to commit
+    $status = Run-Git "status --porcelain" | Out-String # Capture output for check
+
+    if ($status -ne "") {
+        # Changes detected, proceed with commit and push
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm"
+        Write-Host "Changes detected. Committing data update..."
+        
+        # Commit the changes
+        Run-Git "commit -m 'Automated Data Update: $timestamp'"
+        
+        # Push to GitHub
+        Write-Host "Pushing changes to GitHub 'main' branch..."
+        Run-Git "push origin main"
+        
+        Write-Host "SUCCESS: Data successfully pushed to GitHub at $timestamp."
+    } else {
+        Write-Host "No new data detected in data.csv. Skipping commit and push."
+    }
+
+} catch {
+    Write-Host "CRITICAL FAILURE: An unhandled error occurred."
+    $_.Exception | Write-Host
+    exit 1
 }
 
 Write-Host "--- Sync Finished ---"
