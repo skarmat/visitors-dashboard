@@ -50,6 +50,10 @@
           <div class="h-72">
             <canvas id="dailyChart"></canvas>
           </div>
+          <div class="mt-4 text-center border-t pt-4">
+            <p class="text-sm text-gray-600">Total Visitors (Last 30 Days)</p>
+            <p id="dailyTotal" class="text-2xl font-bold text-indigo-600">-</p>
+          </div>
         </div>
 
         <!-- Monthly Plot Card -->
@@ -71,6 +75,10 @@
           </h2>
           <div class="h-72">
             <canvas id="monthlyChart"></canvas>
+          </div>
+          <div class="mt-4 text-center border-t pt-4">
+            <p class="text-sm text-gray-600">Total Visitors (All Time)</p>
+            <p id="monthlyTotal" class="text-2xl font-bold text-green-600">-</p>
           </div>
         </div>
       </div>
@@ -140,6 +148,10 @@
 
         // Limit to the last 30 days for better visualization
         const last30Days = data.slice(-30);
+        
+        // Calculate total visitors for last 30 days
+        const dailyTotal = last30Days.reduce((sum, item) => sum + item.Visitors, 0);
+        document.getElementById("dailyTotal").textContent = dailyTotal.toLocaleString();
 
         new Chart(ctx, {
           type: "line",
@@ -178,6 +190,10 @@
       // Function to render the Monthly Bar Chart
       function renderMonthlyChart(data) {
         const ctx = document.getElementById("monthlyChart").getContext("2d");
+        
+        // Calculate total visitors for all time
+        const allTimeTotal = data.reduce((sum, item) => sum + item.total, 0);
+        document.getElementById("monthlyTotal").textContent = allTimeTotal.toLocaleString();
 
         // Format month key (e.g., "2025-11") to display name (e.g., "Nov 2025")
         const labels = data.map((item) => {
